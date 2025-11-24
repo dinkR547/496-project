@@ -1,0 +1,360 @@
+!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyCNN - COVID-19 Detection</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase and App Logic -->
+    <script type="module">
+        import { initializeApp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, onSnapshot, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Firebase Configuration ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        
+        // YOUR SPECIFIC CONFIGURATION
+        const firebaseConfig = {
+          apiKey: "AIzaSyAl7QWjyQRK1MIq-bk4-mJICs9VGME9xkQ",
+          authDomain: "mycnn-app.firebaseapp.com",
+          projectId: "mycnn-app",
+          storageBucket: "mycnn-app.firebasestorage.app",
+          messagingSenderId: "47806819715",
+          appId: "1:47806819715:web:59b28cd93ae5773ca29ab6",
+          measurementId: "G-L16JPE5XF4"
+        };
+        
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, auth, db;
+        let userId = null;
+
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            setLogLevel('Debug');
+        } catch (e) {
+            console.error("Error initializing Firebase:", e);
+            document.getElementById('message-box').innerText = 'Error initializing application. Please refresh.';
+        }
+
+        // --- Element References ---
+        const navLoggedIn = document.getElementById('nav-logged-in');
+        const navLoggedOut = document.getElementById('nav-logged-out');
+        
+        const views = ['login-section', 'signup-section', 'contact-section', 'app-section', 'history-section'];
+        const messageBox = document.getElementById('message-box');
+
+        // --- View/Routing Logic ---
+        function showView(viewId) {
+            views.forEach(id => {
+                const view = document.getElementById(id);
+                if (view) view.classList.add('hidden');
+            });
+            const activeView = document.getElementById(viewId);
+            if (activeView) activeView.classList.remove('hidden');
+            messageBox.innerText = ''; 
+        }
+
+        function updateNav(user) {
+            if (user && !user.isAnonymous) {
+                navLoggedIn.classList.remove('hidden');
+                navLoggedOut.classList.add('hidden');
+            } else {
+                navLoggedIn.classList.add('hidden');
+                navLoggedOut.classList.remove('hidden');
+            }
+        }
+
+        function handleHashChange() {
+            const hash = window.location.hash || (userId ? '#app-section' : '#login-section');
+            showView(hash.substring(1));
+        }
+        window.addEventListener('hashchange', handleHashChange);
+
+        // --- Authentication Logic ---
+        async function initializeAuth() {
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth); 
+                }
+            } catch (error) {
+                console.error("Auth Error:", error);
+            }
+        }
+
+        onAuthStateChanged(auth, (user) => {
+            if (user && !user.isAnonymous) {
+                // Signed In
+                userId = user.uid;
+                updateNav(user);
+                loadHistory(userId);
+                if (['#login-section', '#signup-section'].includes(window.location.hash) || window.location.hash === '') {
+                    window.location.hash = '#app-section';
+                } else {
+                    handleHashChange();
+                }
+            } else {
+                // Signed Out
+                userId = null;
+                updateNav(null);
+                document.getElementById('history-list').innerHTML = '';
+                
+                const currentHash = window.location.hash;
+                if(currentHash !== '#contact-section' && currentHash !== '#signup-section') {
+                     window.location.hash = '#login-section';
+                }
+                handleHashChange();
+            }
+        });
+
+        // --- DOM Ready Logic ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Bind Buttons
+            document.getElementById('logout-button').addEventListener('click', () => signOut(auth));
+
+            document.getElementById('login-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('login-email').value;
+                const password = document.getElementById('login-password').value;
+                try {
+                    messageBox.innerText = 'Signing in...';
+                    await signInWithEmailAndPassword(auth, email, password);
+                } catch (error) {
+                    messageBox.innerText = `Error: ${error.message}`;
+                }
+            });
+
+            document.getElementById('signup-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('signup-email').value;
+                const password = document.getElementById('signup-password').value;
+                try {
+                    messageBox.innerText = 'Creating account...';
+                    await createUserWithEmailAndPassword(auth, email, password);
+                } catch (error) {
+                    messageBox.innerText = `Error: ${error.message}`;
+                }
+            });
+
+            // Image Upload Preview
+            document.getElementById('image-upload').addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        document.getElementById('image-preview').src = e.target.result;
+                        document.getElementById('image-preview-container').classList.remove('hidden');
+                        document.getElementById('results-container').classList.add('hidden');
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            // Analyze Button
+            document.getElementById('analyze-button').addEventListener('click', () => {
+                const file = document.getElementById('image-upload').files[0];
+                if (!file) {
+                    messageBox.innerText = 'Please upload an image first.';
+                    return;
+                }
+
+                document.getElementById('results-container').classList.remove('hidden');
+                document.getElementById('loader-container').classList.remove('hidden');
+                document.getElementById('prediction-output').classList.add('hidden');
+                messageBox.innerText = 'Analyzing...';
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                // Fetch from local Python server
+                fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+
+                    document.getElementById('loader-container').classList.add('hidden');
+                    document.getElementById('prediction-output').classList.remove('hidden');
+                    messageBox.innerText = 'Analysis complete.';
+                    
+                    const isCovid = data.prediction === 'COVID-19 Positive';
+                    const resultCard = document.getElementById('result-card');
+                    const predictionText = document.getElementById('prediction-text');
+
+                    if (isCovid) {
+                        predictionText.innerText = 'COVID-19 Positive';
+                        predictionText.className = 'text-4xl font-bold text-red-600';
+                        resultCard.className = 'p-6 rounded-lg bg-red-100 border border-red-200';
+                    } else {
+                        predictionText.innerText = 'COVID-19 Negative';
+                        predictionText.className = 'text-4xl font-bold text-green-600';
+                        resultCard.className = 'p-6 rounded-lg bg-green-100 border border-green-200';
+                    }
+                    document.getElementById('confidence-score').innerText = `${(data.confidence * 100).toFixed(0)}%`;
+
+                    saveScanResult(userId, data.prediction, data.confidence);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('loader-container').classList.add('hidden');
+                    messageBox.innerText = `Analysis failed: ${error.message}`;
+                });
+            });
+
+            initializeAuth();
+        });
+
+        // --- Database Helpers ---
+        function getDbPath(uid) {
+            return collection(db, 'artifacts', appId, 'users', uid, 'scans');
+        }
+
+        async function saveScanResult(uid, prediction, confidence) {
+            if (!uid) return;
+            try {
+                await addDoc(getDbPath(uid), {
+                    prediction, confidence, timestamp: new Date()
+                });
+                console.log('Result saved.');
+            } catch (e) {
+                console.error('Save error:', e);
+            }
+        }
+
+        function loadHistory(uid) {
+            if (!uid) return;
+            const q = query(getDbPath(uid));
+            onSnapshot(q, (snapshot) => {
+                let scans = [];
+                snapshot.forEach(doc => scans.push({id: doc.id, ...doc.data()}));
+                scans.sort((a, b) => b.timestamp.toDate() - a.timestamp.toDate());
+                
+                const list = document.getElementById('history-list');
+                list.innerHTML = '';
+                if (scans.length === 0) {
+                    list.innerHTML = '<p class="text-gray-500">No scan history found.</p>';
+                    return;
+                }
+                
+                scans.forEach(scan => {
+                    const isPos = scan.prediction === 'COVID-19 Positive';
+                    list.innerHTML += `
+                        <div class="p-4 rounded-lg shadow-md ${isPos ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'} border">
+                            <div class="flex justify-between items-center">
+                                <p class="text-xl font-bold ${isPos ? 'text-red-700' : 'text-green-700'}">${scan.prediction}</p>
+                                <p class="text-lg font-semibold ${isPos ? 'text-red-600' : 'text-green-600'}">${(scan.confidence * 100).toFixed(0)}%</p>
+                            </div>
+                            <p class="text-sm text-gray-500 mt-2">${scan.timestamp.toDate().toLocaleString()}</p>
+                        </div>`;
+                });
+            });
+        }
+    </script>
+
+    <style>
+        .loader {
+            border-top-color: #06b6d4;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans leading-normal tracking-normal">
+    <nav class="bg-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between">
+                <div class="flex space-x-4">
+                    <a href="#" class="flex items-center py-5 px-2 text-gray-700 hover:text-gray-900">
+                        <img src="https://i.imgur.com/5uVSHf4.png" alt="MyCNN Logo" class="h-8 w-8 mr-2">
+                        <span class="font-bold">MyCNN</span>
+                    </a>
+                </div>
+                <div id="nav-logged-out" class="hidden md:flex items-center space-x-1">
+                    <a href="#login-section" class="py-5 px-3 text-gray-700 hover:text-gray-900">Login</a>
+                    <a href="#contact-section" class="py-5 px-3 text-gray-700 hover:text-gray-900">Contact</a>
+                    <a href="#signup-section" class="py-2 px-3 bg-cyan-500 text-white rounded hover:bg-cyan-600 transition duration-300">Sign Up</a>
+                </div>
+                <div id="nav-logged-in" class="hidden md:flex items-center space-x-1">
+                    <a href="#app-section" class="py-5 px-3 text-gray-700 hover:text-gray-900">Analyze</a>
+                    <a href="#history-section" class="py-5 px-3 text-gray-700 hover:text-gray-900">History</a>
+                    <a href="#contact-section" class="py-5 px-3 text-gray-700 hover:text-gray-900">Contact</a>
+                    <button id="logout-button" class="py-2 px-3 bg-gray-500 text-white rounded hover:bg-gray-600 transition duration-300">Logout</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-4xl mx-auto p-8">
+        <div id="message-box" class="mb-4 text-center font-semibold text-red-600"></div>
+
+        <!-- Login -->
+        <div id="login-section" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-bold mb-6 text-blue-900">Login</h2>
+            <form id="login-form">
+                <div class="mb-4"><label class="block text-sm font-bold mb-2">Email</label><input id="login-email" type="email" class="border rounded w-full py-2 px-3" required></div>
+                <div class="mb-6"><label class="block text-sm font-bold mb-2">Password</label><input id="login-password" type="password" class="border rounded w-full py-2 px-3" required></div>
+                <button class="bg-cyan-500 text-white font-bold py-2 px-4 rounded" type="submit">Sign In</button>
+            </form>
+        </div>
+        
+        <!-- Signup -->
+        <div id="signup-section" class="bg-white p-8 rounded-lg shadow-md mb-8 hidden">
+            <h2 class="text-2xl font-bold mb-6 text-blue-900">Create Account</h2>
+            <form id="signup-form">
+                <div class="mb-4"><label class="block text-sm font-bold mb-2">Full Name</label><input type="text" class="border rounded w-full py-2 px-3" required></div>
+                <div class="mb-4"><label class="block text-sm font-bold mb-2">Email</label><input id="signup-email" type="email" class="border rounded w-full py-2 px-3" required></div>
+                <div class="mb-6"><label class="block text-sm font-bold mb-2">Password</label><input id="signup-password" type="password" class="border rounded w-full py-2 px-3" required></div>
+                <button class="bg-cyan-500 text-white font-bold py-2 px-4 rounded" type="submit">Sign Up</button>
+            </form>
+        </div>
+
+        <!-- Contact -->
+        <div id="contact-section" class="bg-white p-8 rounded-lg shadow-md mb-8 hidden">
+            <h2 class="text-2xl font-bold mb-6 text-blue-900">Contact Us</h2>
+            <p>Email: <a href="mailto:MyCNNsupport@example.com" class="text-cyan-600">MyCNNsupport@example.com</a></p>
+        </div>
+
+        <!-- History -->
+        <div id="history-section" class="bg-white p-8 rounded-lg shadow-md mb-8 hidden">
+            <h2 class="text-2xl font-bold mb-6 text-blue-900">Scan History</h2>
+            <div id="history-list" class="space-y-4"></div>
+        </div>
+
+        <!-- App -->
+        <div id="app-section" class="hidden">
+            <div class="bg-white p-8 rounded-lg shadow-md">
+                <h1 class="text-3xl font-bold mb-2 text-blue-900">COVID-19 CT Scan Analysis</h1>
+                <div class="mb-6">
+                    <label for="image-upload" class="cursor-pointer bg-cyan-500 text-white font-bold py-2 px-4 rounded">Upload CT Scan Image</label>
+                    <input id="image-upload" type="file" class="hidden" accept="image/*">
+                </div>
+                <div id="image-preview-container" class="mb-6 hidden">
+                    <img id="image-preview" src="#" class="max-w-full h-auto rounded-lg shadow-md border">
+                </div>
+                <button id="analyze-button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">Analyze Image</button>
+
+                <div id="results-container" class="mt-8 hidden">
+                    <div id="loader-container" class="flex justify-center items-center">
+                        <div class="loader rounded-full border-4 border-t-4 border-gray-200 h-12 w-12"></div>
+                        <p class="ml-4">Analyzing...</p>
+                    </div>
+                    <div id="prediction-output" class="hidden text-center">
+                        <div id="result-card" class="p-6 rounded-lg">
+                            <p id="prediction-text" class="text-4xl font-bold"></p>
+                            <p class="text-2xl mt-2">Confidence: <span id="confidence-score" class="font-bold"></span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
