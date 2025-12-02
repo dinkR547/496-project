@@ -1,360 +1,322 @@
-!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MyCNN - COVID-19 Detection</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Firebase and App Logic -->
-    <script type="module">
-        import { initializeApp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, onSnapshot, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MyCNN · AI COVID-19 Detection</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
 
-        // --- Firebase Configuration ---
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        
-        // YOUR SPECIFIC CONFIGURATION
-        const firebaseConfig = {
-          apiKey: "AIzaSyAl7QWjyQRK1MIq-bk4-mJICs9VGME9xkQ",
-          authDomain: "mycnn-app.firebaseapp.com",
-          projectId: "mycnn-app",
-          storageBucket: "mycnn-app.firebasestorage.app",
-          messagingSenderId: "47806819715",
-          appId: "1:47806819715:web:59b28cd93ae5773ca29ab6",
-          measurementId: "G-L16JPE5XF4"
-        };
-        
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+  <style>
+  :root{
+    --brand:#0ea5e9;
+    --dark:#030712;
+    --glass-bg: rgba(255,255,255,0.06);
+    --accent:#0ea5e9;
+    --muted: #94a3b8;
+  }
+  html,body{height:100%}
+  body{font-family:Inter,system-ui, -apple-system, 'Segoe UI', Roboto, Arial;background:linear-gradient(135deg,#020617,#082f49 60%);color:#fff;min-height:100vh}
+  .glass{background:var(--glass-bg);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.06)}
+  .card{box-shadow:0 20px 50px rgba(0,0,0,.45)}
+  input,textarea,select{background:transparent;border:1px solid rgba(255,255,255,0.06);color:inherit}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:rgba(14,165,233,0.9);box-shadow:0 0 0 6px rgba(14,165,233,0.06)}
+  .btn{background:linear-gradient(135deg,#38bdf8,#0ea5e9);box-shadow:0 10px 30px rgba(56,189,248,.18);transition:transform .12s ease}
+  .btn:hover{transform:translateY(-3px)}
+  .muted{color:var(--muted)}
+  .rounded-xl{border-radius:1rem}
+  .text-sky-400{color:#38bdf8}
+  .file-input-hidden{display:none}
+  .center-max{max-width:1200px;margin:0 auto;padding:32px}
+  nav.fixed{left:0;right:0;top:0;z-index:50}
+  main{padding-top:86px}
+  /* Hover animation for important header buttons */
+  .btn-hover{transition:transform .16s ease,box-shadow .16s ease}
+  .btn-hover:hover{transform:translateY(-3px);box-shadow:0 12px 32px rgba(56,189,248,.14)}
+  </style>
 
-        let app, auth, db;
-        let userId = null;
+  <!-- Firebase and App Logic (preserved) -->
+  <script type="module">
+    import { initializeApp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, query, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        try {
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-            setLogLevel('Debug');
-        } catch (e) {
-            console.error("Error initializing Firebase:", e);
-            document.getElementById('message-box').innerText = 'Error initializing application. Please refresh.';
-        }
+    // --- Firebase Configuration ---
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const firebaseConfig = {
+      apiKey: "AIzaSyAl7QWjyQRK1MIq-bk4-mJICs9VGME9xkQ",
+      authDomain: "mycnn-app.firebaseapp.com",
+      projectId: "mycnn-app",
+      storageBucket: "mycnn-app.firebasestorage.app",
+      messagingSenderId: "47806819715",
+      appId: "1:47806819715:web:59b28cd93ae5773ca29ab6",
+      measurementId: "G-L16JPE5XF4"
+    };
 
-        // --- Element References ---
-        const navLoggedIn = document.getElementById('nav-logged-in');
-        const navLoggedOut = document.getElementById('nav-logged-out');
-        
-        const views = ['login-section', 'signup-section', 'contact-section', 'app-section', 'history-section'];
-        const messageBox = document.getElementById('message-box');
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        // --- View/Routing Logic ---
-        function showView(viewId) {
-            views.forEach(id => {
-                const view = document.getElementById(id);
-                if (view) view.classList.add('hidden');
-            });
-            const activeView = document.getElementById(viewId);
-            if (activeView) activeView.classList.remove('hidden');
-            messageBox.innerText = ''; 
-        }
+    let app, auth, db;
+    let userId = null;
 
-        function updateNav(user) {
-            if (user && !user.isAnonymous) {
-                navLoggedIn.classList.remove('hidden');
-                navLoggedOut.classList.add('hidden');
-            } else {
-                navLoggedIn.classList.add('hidden');
-                navLoggedOut.classList.remove('hidden');
-            }
-        }
+    try {
+        app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+        setLogLevel('Debug');
+    } catch (e) {
+        console.error("Error initializing Firebase:", e);
+        // We will display a message after DOM ready if needed
+    }
 
-        function handleHashChange() {
-            const hash = window.location.hash || (userId ? '#app-section' : '#login-section');
-            showView(hash.substring(1));
-        }
-        window.addEventListener('hashchange', handleHashChange);
+    // Helper: consistent DB path
+    function getDbPath(uid) { return collection(db, 'artifacts', appId, 'users', uid, 'scans'); }
 
-        // --- Authentication Logic ---
-        async function initializeAuth() {
-            try {
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth); 
-                }
-            } catch (error) {
-                console.error("Auth Error:", error);
-            }
-        }
+    async function saveScanResult(uid, prediction, confidence) {
+      if (!uid) return;
+      try { await addDoc(getDbPath(uid), { prediction, confidence, timestamp: new Date() }); }
+      catch (e) { console.error('Save error:', e); }
+    }
 
-        onAuthStateChanged(auth, (user) => {
-            if (user && !user.isAnonymous) {
-                // Signed In
-                userId = user.uid;
-                updateNav(user);
-                loadHistory(userId);
-                if (['#login-section', '#signup-section'].includes(window.location.hash) || window.location.hash === '') {
-                    window.location.hash = '#app-section';
-                } else {
-                    handleHashChange();
-                }
-            } else {
-                // Signed Out
-                userId = null;
-                updateNav(null);
-                document.getElementById('history-list').innerHTML = '';
-                
-                const currentHash = window.location.hash;
-                if(currentHash !== '#contact-section' && currentHash !== '#signup-section') {
-                     window.location.hash = '#login-section';
-                }
-                handleHashChange();
-            }
+    function loadHistory(uid) {
+      if (!uid) return;
+      const q = query(getDbPath(uid));
+      onSnapshot(q, (snapshot) => {
+        const list = document.getElementById('history-list'); if (!list) return;
+        let scans = [];
+        snapshot.forEach(doc => scans.push({ id: doc.id, ...doc.data() }));
+        scans.sort((a,b)=> (b.timestamp?.toDate?.() ?? 0) - (a.timestamp?.toDate?.() ?? 0));
+        list.innerHTML = '';
+        if (scans.length === 0) { list.innerHTML = '<p class="muted">No scan history found.</p>'; return; }
+        scans.forEach(scan => {
+          const isPos = scan.prediction === 'COVID-19 Positive';
+          const el = document.createElement('div');
+          el.className = 'glass p-4 rounded-xl mb-3';
+          el.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div style="font-weight:700">${scan.prediction}</div>
+              <div style="font-weight:700">${(scan.confidence*100).toFixed(0)}%</div>
+            </div>
+            <div class="muted" style="margin-top:6px">${scan.timestamp?.toDate?.().toLocaleString?.() ?? ''}</div>
+          `;
+          list.appendChild(el);
         });
+      });
+    }
 
-        // --- DOM Ready Logic ---
-        document.addEventListener('DOMContentLoaded', () => {
-            // Bind Buttons
-            document.getElementById('logout-button').addEventListener('click', () => signOut(auth));
+    async function initializeAuth(){
+      try{
+        if (initialAuthToken) await signInWithCustomToken(auth, initialAuthToken);
+        else await signInAnonymously(auth);
+      }catch(e){ console.warn('Auth init error', e); }
+    }
 
-            document.getElementById('login-form').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const email = document.getElementById('login-email').value;
-                const password = document.getElementById('login-password').value;
-                try {
-                    messageBox.innerText = 'Signing in...';
-                    await signInWithEmailAndPassword(auth, email, password);
-                } catch (error) {
-                    messageBox.innerText = `Error: ${error.message}`;
-                }
-            });
+    // --- DOM wiring after ready (preserve IDs and logic) ---
+    document.addEventListener('DOMContentLoaded', () => {
+      const messageBox = document.getElementById('message-box');
+      const navLoggedIn = document.getElementById('nav-logged-in');
+      const navLoggedOut = document.getElementById('nav-logged-out');
+      const loginForm = document.getElementById('login-form');
+      const signupForm = document.getElementById('signup-form');
+      const logoutBtn = document.getElementById('logout-button');
+      const imageInput = document.getElementById('image-upload');
+      const imgPreview = document.getElementById('image-preview');
+      const imgPreviewContainer = document.getElementById('image-preview-container');
+      const analyzeBtn = document.getElementById('analyze-button');
+      const resultsContainer = document.getElementById('results-container');
+      const loaderContainer = document.getElementById('loader-container');
+      const predictionOutput = document.getElementById('prediction-output');
 
-            document.getElementById('signup-form').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const email = document.getElementById('signup-email').value;
-                const password = document.getElementById('signup-password').value;
-                try {
-                    messageBox.innerText = 'Creating account...';
-                    await createUserWithEmailAndPassword(auth, email, password);
-                } catch (error) {
-                    messageBox.innerText = `Error: ${error.message}`;
-                }
-            });
+      function updateNav(user){
+        if (user && !user.isAnonymous) { if(navLoggedIn) navLoggedIn.classList.remove('hidden'); if(navLoggedOut) navLoggedOut.classList.add('hidden'); }
+        else { if(navLoggedIn) navLoggedIn.classList.add('hidden'); if(navLoggedOut) navLoggedOut.classList.remove('hidden'); }
+      }
 
-            // Image Upload Preview
-            document.getElementById('image-upload').addEventListener('change', (event) => {
-                const file = event.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        document.getElementById('image-preview').src = e.target.result;
-                        document.getElementById('image-preview-container').classList.remove('hidden');
-                        document.getElementById('results-container').classList.add('hidden');
-                    };
-                    reader.readAsDataURL(file);
-                }
-            });
+      function showView(viewId){
+        const views = ['login-section','signup-section','contact-section','app-section','history-section'];
+        views.forEach(id => { const v = document.getElementById(id); if(v) v.classList.add('hidden'); });
+        const active = document.getElementById(viewId); if(active) active.classList.remove('hidden');
+        if (messageBox) messageBox.innerText = '';
+      }
 
-            // Analyze Button
-            document.getElementById('analyze-button').addEventListener('click', () => {
-                const file = document.getElementById('image-upload').files[0];
-                if (!file) {
-                    messageBox.innerText = 'Please upload an image first.';
-                    return;
-                }
+      // Handle URL hash changes (so anchors like #signup-section work)
+      function handleHashChange(){
+        const hash = window.location.hash || (userId ? '#app-section' : '#login-section');
+        const id = hash.startsWith('#') ? hash.substring(1) : hash;
+        showView(id);
+      }
+      window.addEventListener('hashchange', handleHashChange);
+      // ensure initial view matches URL on load
+      handleHashChange();
 
-                document.getElementById('results-container').classList.remove('hidden');
-                document.getElementById('loader-container').classList.remove('hidden');
-                document.getElementById('prediction-output').classList.add('hidden');
-                messageBox.innerText = 'Analyzing...';
+      // Wire auth buttons/forms
+      if (logoutBtn) logoutBtn.addEventListener('click', async ()=>{ try{ await signOut(auth); }catch(e){console.error(e);} });
 
-                const formData = new FormData();
-                formData.append('file', file);
+      if (loginForm) loginForm.addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+        try{ if(messageBox) messageBox.innerText = 'Signing in...'; await signInWithEmailAndPassword(auth, email, password); }
+        catch(err){ console.error(err); if(messageBox) messageBox.innerText = `Error: ${err.message}`; }
+      });
 
-                // Fetch from local Python server
-                fetch('/predict', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) throw new Error(data.error);
+      if (signupForm) signupForm.addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        const email = document.getElementById('signup-email').value;
+        const password = document.getElementById('signup-password').value;
+        try{ if(messageBox) messageBox.innerText = 'Creating account...'; await createUserWithEmailAndPassword(auth, email, password); }
+        catch(err){ console.error(err); if(messageBox) messageBox.innerText = `Error: ${err.message}`; }
+      });
 
-                    document.getElementById('loader-container').classList.add('hidden');
-                    document.getElementById('prediction-output').classList.remove('hidden');
-                    messageBox.innerText = 'Analysis complete.';
-                    
-                    const isCovid = data.prediction === 'COVID-19 Positive';
-                    const resultCard = document.getElementById('result-card');
-                    const predictionText = document.getElementById('prediction-text');
+      // Upload preview
+      if (imageInput) imageInput.addEventListener('change', (e)=>{
+        const file = e.target.files?.[0]; if(!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => { if(imgPreview) imgPreview.src = ev.target.result; if(imgPreviewContainer) imgPreviewContainer.classList.remove('hidden'); if(resultsContainer) resultsContainer.classList.add('hidden'); };
+        reader.readAsDataURL(file);
+      });
 
-                    if (isCovid) {
-                        predictionText.innerText = 'COVID-19 Positive';
-                        predictionText.className = 'text-4xl font-bold text-red-600';
-                        resultCard.className = 'p-6 rounded-lg bg-red-100 border border-red-200';
-                    } else {
-                        predictionText.innerText = 'COVID-19 Negative';
-                        predictionText.className = 'text-4xl font-bold text-green-600';
-                        resultCard.className = 'p-6 rounded-lg bg-green-100 border border-green-200';
-                    }
-                    document.getElementById('confidence-score').innerText = `${(data.confidence * 100).toFixed(0)}%`;
+      // Analyze
+      if (analyzeBtn) analyzeBtn.addEventListener('click', async ()=>{
+        const file = document.getElementById('image-upload').files[0]; if(!file){ if(messageBox) messageBox.innerText = 'Please upload an image first.'; return; }
+        if(resultsContainer) resultsContainer.classList.remove('hidden'); if(loaderContainer) loaderContainer.classList.remove('hidden'); if(predictionOutput) predictionOutput.classList.add('hidden'); if(messageBox) messageBox.innerText = 'Analyzing...';
 
-                    saveScanResult(userId, data.prediction, data.confidence);
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    document.getElementById('loader-container').classList.add('hidden');
-                    messageBox.innerText = `Analysis failed: ${error.message}`;
-                });
-            });
+        try{
+          const fd = new FormData(); fd.append('file', file);
+          const res = await fetch('/predict', { method:'POST', body: fd });
+          const j = await res.json();
+          if (j.error) throw new Error(j.error);
+          // show results
+          if (loaderContainer) loaderContainer.classList.add('hidden'); if(predictionOutput) predictionOutput.classList.remove('hidden'); if(messageBox) messageBox.innerText = 'Analysis complete.';
+          const pred = j.prediction || 'Unknown'; const conf = Number(j.confidence) || 0;
+          const predictionText = document.getElementById('prediction-text'); const confidenceScore = document.getElementById('confidence-score'); const resultCard = document.getElementById('result-card');
+          if(predictionText) predictionText.innerText = pred; if(confidenceScore) confidenceScore.innerText = `${(conf*100).toFixed(0)}%`;
+          // style card
+          if(resultCard){ resultCard.className = ''; if(pred && pred.includes('Positive')) resultCard.className = 'p-6 rounded-xl bg-red-900/20 border border-red-700/30'; else resultCard.className = 'p-6 rounded-xl bg-green-900/10 border border-green-700/20'; }
+          // Save
+          if(userId) saveScanResult(userId, pred, conf);
+        }catch(err){ console.error(err); if(loaderContainer) loaderContainer.classList.add('hidden'); if(messageBox) messageBox.innerText = `Analysis failed: ${err.message}`; }
+      });
 
-            initializeAuth();
-        });
+      // Auth state handling
+      onAuthStateChanged(auth, (user)=>{
+        if (user && !user.isAnonymous){ userId = user.uid; updateNav(user); loadHistory(userId); if(['#login-section','#signup-section'].includes(window.location.hash) || window.location.hash==='') window.location.hash = '#app-section'; else { const h = window.location.hash.substring(1); showView(h || 'app-section'); } }
+        else{ userId = null; updateNav(null); const list = document.getElementById('history-list'); if(list) list.innerHTML = ''; const h = window.location.hash.substring(1); if(!['contact-section','signup-section'].includes(h)) window.location.hash = '#login-section'; showView(window.location.hash.substring(1) || 'login-section'); }
+      });
 
-        // --- Database Helpers ---
-        function getDbPath(uid) {
-            return collection(db, 'artifacts', appId, 'users', uid, 'scans');
-        }
+      // initialize
+      initializeAuth();
+    });
 
-        async function saveScanResult(uid, prediction, confidence) {
-            if (!uid) return;
-            try {
-                await addDoc(getDbPath(uid), {
-                    prediction, confidence, timestamp: new Date()
-                });
-                console.log('Result saved.');
-            } catch (e) {
-                console.error('Save error:', e);
-            }
-        }
+  </script>
 
-        function loadHistory(uid) {
-            if (!uid) return;
-            const q = query(getDbPath(uid));
-            onSnapshot(q, (snapshot) => {
-                let scans = [];
-                snapshot.forEach(doc => scans.push({id: doc.id, ...doc.data()}));
-                scans.sort((a, b) => b.timestamp.toDate() - a.timestamp.toDate());
-                
-                const list = document.getElementById('history-list');
-                list.innerHTML = '';
-                if (scans.length === 0) {
-                    list.innerHTML = '<p class="text-gray-500">No scan history found.</p>';
-                    return;
-                }
-                
-                scans.forEach(scan => {
-                    const isPos = scan.prediction === 'COVID-19 Positive';
-                    list.innerHTML += `
-                        <div class="p-4 rounded-lg shadow-md ${isPos ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'} border">
-                            <div class="flex justify-between items-center">
-                                <p class="text-xl font-bold ${isPos ? 'text-red-700' : 'text-green-700'}">${scan.prediction}</p>
-                                <p class="text-lg font-semibold ${isPos ? 'text-red-600' : 'text-green-600'}">${(scan.confidence * 100).toFixed(0)}%</p>
-                            </div>
-                            <p class="text-sm text-gray-500 mt-2">${scan.timestamp.toDate().toLocaleString()}</p>
-                        </div>`;
-                });
-            });
-        }
-    </script>
-
-    <style>
-        .loader {
-            border-top-color: #06b6d4;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
 </head>
-<body class="bg-gray-100 font-sans leading-normal tracking-normal">
-    <nav class="bg-white shadow-lg">
-        <div class="max-w-7xl mx-auto px-4">
-            <div class="flex justify-between">
-                <div class="flex space-x-4">
-                    <a href="#" class="flex items-center py-5 px-2 text-gray-700 hover:text-gray-900">
-                        <img src="https://i.imgur.com/5uVSHf4.png" alt="MyCNN Logo" class="h-8 w-8 mr-2">
-                        <span class="font-bold">MyCNN</span>
-                    </a>
-                </div>
-                <div id="nav-logged-out" class="hidden md:flex items-center space-x-1">
-                    <a href="#login-section" class="py-5 px-3 text-gray-700 hover:text-gray-900">Login</a>
-                    <a href="#contact-section" class="py-5 px-3 text-gray-700 hover:text-gray-900">Contact</a>
-                    <a href="#signup-section" class="py-2 px-3 bg-cyan-500 text-white rounded hover:bg-cyan-600 transition duration-300">Sign Up</a>
-                </div>
-                <div id="nav-logged-in" class="hidden md:flex items-center space-x-1">
-                    <a href="#app-section" class="py-5 px-3 text-gray-700 hover:text-gray-900">Analyze</a>
-                    <a href="#history-section" class="py-5 px-3 text-gray-700 hover:text-gray-900">History</a>
-                    <a href="#contact-section" class="py-5 px-3 text-gray-700 hover:text-gray-900">Contact</a>
-                    <button id="logout-button" class="py-2 px-3 bg-gray-500 text-white rounded hover:bg-gray-600 transition duration-300">Logout</button>
-                </div>
-            </div>
-        </div>
-    </nav>
+<body>
 
-    <div class="max-w-4xl mx-auto p-8">
-        <div id="message-box" class="mb-4 text-center font-semibold text-red-600"></div>
-
-        <!-- Login -->
-        <div id="login-section" class="bg-white p-8 rounded-lg shadow-md mb-8">
-            <h2 class="text-2xl font-bold mb-6 text-blue-900">Login</h2>
-            <form id="login-form">
-                <div class="mb-4"><label class="block text-sm font-bold mb-2">Email</label><input id="login-email" type="email" class="border rounded w-full py-2 px-3" required></div>
-                <div class="mb-6"><label class="block text-sm font-bold mb-2">Password</label><input id="login-password" type="password" class="border rounded w-full py-2 px-3" required></div>
-                <button class="bg-cyan-500 text-white font-bold py-2 px-4 rounded" type="submit">Sign In</button>
-            </form>
-        </div>
-        
-        <!-- Signup -->
-        <div id="signup-section" class="bg-white p-8 rounded-lg shadow-md mb-8 hidden">
-            <h2 class="text-2xl font-bold mb-6 text-blue-900">Create Account</h2>
-            <form id="signup-form">
-                <div class="mb-4"><label class="block text-sm font-bold mb-2">Full Name</label><input type="text" class="border rounded w-full py-2 px-3" required></div>
-                <div class="mb-4"><label class="block text-sm font-bold mb-2">Email</label><input id="signup-email" type="email" class="border rounded w-full py-2 px-3" required></div>
-                <div class="mb-6"><label class="block text-sm font-bold mb-2">Password</label><input id="signup-password" type="password" class="border rounded w-full py-2 px-3" required></div>
-                <button class="bg-cyan-500 text-white font-bold py-2 px-4 rounded" type="submit">Sign Up</button>
-            </form>
-        </div>
-
-        <!-- Contact -->
-        <div id="contact-section" class="bg-white p-8 rounded-lg shadow-md mb-8 hidden">
-            <h2 class="text-2xl font-bold mb-6 text-blue-900">Contact Us</h2>
-            <p>Email: <a href="mailto:MyCNNsupport@example.com" class="text-cyan-600">MyCNNsupport@example.com</a></p>
-        </div>
-
-        <!-- History -->
-        <div id="history-section" class="bg-white p-8 rounded-lg shadow-md mb-8 hidden">
-            <h2 class="text-2xl font-bold mb-6 text-blue-900">Scan History</h2>
-            <div id="history-list" class="space-y-4"></div>
-        </div>
-
-        <!-- App -->
-        <div id="app-section" class="hidden">
-            <div class="bg-white p-8 rounded-lg shadow-md">
-                <h1 class="text-3xl font-bold mb-2 text-blue-900">COVID-19 CT Scan Analysis</h1>
-                <div class="mb-6">
-                    <label for="image-upload" class="cursor-pointer bg-cyan-500 text-white font-bold py-2 px-4 rounded">Upload CT Scan Image</label>
-                    <input id="image-upload" type="file" class="hidden" accept="image/*">
-                </div>
-                <div id="image-preview-container" class="mb-6 hidden">
-                    <img id="image-preview" src="#" class="max-w-full h-auto rounded-lg shadow-md border">
-                </div>
-                <button id="analyze-button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">Analyze Image</button>
-
-                <div id="results-container" class="mt-8 hidden">
-                    <div id="loader-container" class="flex justify-center items-center">
-                        <div class="loader rounded-full border-4 border-t-4 border-gray-200 h-12 w-12"></div>
-                        <p class="ml-4">Analyzing...</p>
-                    </div>
-                    <div id="prediction-output" class="hidden text-center">
-                        <div id="result-card" class="p-6 rounded-lg">
-                            <p id="prediction-text" class="text-4xl font-bold"></p>
-                            <p class="text-2xl mt-2">Confidence: <span id="confidence-score" class="font-bold"></span></p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+  <!-- NAV -->
+  <nav class="glass fixed">
+    <div class="center-max flex justify-between items-center px-6 py-4">
+      <div class="flex items-center gap-3">
+        <img src="https://i.imgur.com/5uVSHf4.png" alt="logo" class="h-10 w-10 rounded-md">
+        <div class="text-2xl font-extrabold tracking-tight">MyCNN</div>
+      </div>
+      <!-- Visible nav depends on auth state. Only one set is shown at a time. -->
+      <div id="nav-logged-out" class="hidden md:flex items-center gap-4">
+        <a href="#login-section" class="muted btn-hover">Login</a>
+        <a href="#signup-section" class="btn px-4 py-2 rounded-xl" aria-label="Create an account">Create an Account</a>
+      </div>
+      <div id="nav-logged-in" class="hidden md:flex items-center gap-4">
+        <a href="#app-section" class="muted btn-hover">Analyze</a>
+        <a href="#history-section" class="muted btn-hover">History</a>
+        <button id="logout-button" class="glass btn-hover px-3 py-2 rounded-xl">Logout</button>
+      </div>
+      <!-- Single Contact link (not duplicated) -->
+      <a href="#contact-section" class="muted btn-hover hidden md:inline-block">Contact</a>
     </div>
+  </nav>
+
+  <main>
+    <!-- HERO -->
+    <section class="pt-28 pb-12">
+      <div class="center-max grid md:grid-cols-2 gap-12 items-center">
+        <div>
+          <h1 class="text-5xl font-extrabold leading-tight mb-4">AI-Powered<br><span class="text-sky-400">COVID-19</span> Detection</h1>
+          <p class="muted mb-6">Upload CT scan images and receive instant analysis backed by CNN deep-learning technology.</p>
+          <a href="#app-section" class="btn btn-hover px-8 py-4 rounded-xl font-bold">Start Analyzing</a>
+        </div>
+        <div class="glass p-10 rounded-3xl card text-center">
+          <p class="muted">Advanced</p>
+          <h2 class="text-5xl font-black text-sky-400">98.7%</h2>
+          <p class="muted">Model testing accuracy</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="center-max space-y-12 pb-20">
+      <div id="message-box" class="text-center text-red-400"></div>
+
+      <!-- LOGIN -->
+      <section id="login-section" class="glass p-10 rounded-3xl card">
+        <h2 class="text-2xl font-bold mb-4">Login</h2>
+        <form id="login-form" class="space-y-4">
+          <input id="login-email" placeholder="Email" type="email" class="w-full p-3 rounded-xl" required />
+          <input id="login-password" placeholder="Password" type="password" class="w-full p-3 rounded-xl" required />
+          <button type="submit" class="btn w-full py-3 rounded-xl">Sign In</button>
+        </form>
+      </section>
+
+      <!-- SIGNUP -->
+      <section id="signup-section" class="glass p-10 rounded-3xl card hidden">
+        <h2 class="text-2xl font-bold mb-4">Create an Account</h2>
+        <form id="signup-form" class="space-y-4">
+          <input placeholder="Full Name" type="text" class="w-full p-3 rounded-xl" />
+          <input id="signup-email" placeholder="Email" type="email" class="w-full p-3 rounded-xl" required />
+          <input id="signup-password" placeholder="Password" type="password" class="w-full p-3 rounded-xl" required />
+          <button type="submit" class="btn w-full py-3 rounded-xl">Create Account</button>
+        </form>
+      </section>
+
+      <!-- APP -->
+      <section id="app-section" class="glass p-10 rounded-3xl card hidden">
+        <h2 class="text-3xl font-bold mb-4">Analyze CT Scan</h2>
+        <p class="muted mb-4">Upload a CT scan image for COVID-19 detection.</p>
+        <input id="image-upload" class="file-input-hidden" type="file" accept="image/*" />
+        <label for="image-upload" class="file-label glass p-3 rounded-xl mb-4 inline-block w-full text-center btn-hover">Choose File</label>
+        <button id="analyze-button" class="btn w-full py-4 rounded-xl">Run Analysis</button>
+
+        <div id="image-preview-container" class="hidden mt-6 text-center">
+          <img id="image-preview" src="#" alt="preview" class="mx-auto max-h-56 rounded-xl border" />
+        </div>
+
+        <div id="results-container" class="hidden mt-6">
+          <div id="loader-container" class="flex items-center justify-center gap-4">
+            <div class="h-12 w-12 rounded-full border-4 border-t-4 border-white/20 loader"></div>
+            <div class="muted">Analyzing…</div>
+          </div>
+
+          <div id="prediction-output" class="hidden mt-6 text-center">
+            <div id="result-card" class="p-6 rounded-xl">
+              <p id="prediction-text" class="text-3xl font-bold"></p>
+              <p class="muted mt-2">Confidence: <span id="confidence-score" class="font-semibold"></span></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- HISTORY -->
+      <section id="history-section" class="glass p-10 rounded-3xl card hidden">
+        <h2 class="text-2xl font-bold mb-4">Scan History</h2>
+        <div id="history-list" class="space-y-4 muted">No scans stored yet.</div>
+      </section>
+
+      <!-- CONTACT -->
+      <section id="contact-section" class="glass p-10 rounded-3xl card hidden text-center">
+        <h2 class="text-2xl font-bold mb-4">Contact</h2>
+        <p class="muted">Email: <span class="text-sky-400">MyCNNsupport@example.com</span></p>
+      </section>
+    </div>
+
+    <footer class="text-center py-10 muted">© 2025 MyCNN · All Rights Reserved</footer>
+  </main>
+
 </body>
 </html>
