@@ -7,13 +7,13 @@ try:
     from flask import Flask, request, jsonify, send_from_directory
     from flask_cors import CORS
 except ModuleNotFoundError:
-    print("Error: Flask not found. Run 'pip install flask flask-cors'")
+    print("Error: Flask not found. Run 'pip install flask flask-cors.'")
     exit()
 
 try:
     import tensorflow as tf
 except ModuleNotFoundError:
-    print("Error: TensorFlow not found. Run 'pip install tensorflow'")
+    print("Error: TensorFlow not found. Run 'pip install tensorflow.'")
     exit()
 
 try:
