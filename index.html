@@ -210,38 +210,42 @@
   </script>
 
 </head>
-<body>
+<body class="bg-lightpink-100 font-sans leading-normal tracking-normal">
+    <nav class="bg-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between">
+                <div class="flex space-x-4">
+                    <a href="#" class="flex items-center py-5 px-2 text-gray-700 hover:text-gray-900">
+                        <img src="IMG_4038.PNG" alt="MyCNN Logo" class="h-8 w-8 mr-2">
+                        <span class="font-bold">MyCNN</span>
+                    </a>
+                </div>
+                <div id="nav-logged-out" class="hidden md:flex items-center space-x-1">
+                    <a href="#login-section" class="py-5 px-3 text-gray-700 hover:text-gray-900">Login</a>
+                    <a href="#contact-section" class="py-5 px-3 text-gray-700 hover:text-gray-900">Contact</a>
+                    <a href="#signup-section" class="py-2 px-3 bg-cyan-500 text-white rounded hover:bg-cyan-600 transition duration-300">Sign Up</a>
+                </div>
+                <div id="nav-logged-in" class="hidden md:flex items-center space-x-1">
+                    <a href="#app-section" class="py-5 px-3 text-gray-700 hover:text-gray-900">Analyze</a>
+                    <a href="#history-section" class="py-5 px-3 text-gray-700 hover:text-gray-900">History</a>
+                    <a href="#contact-section" class="py-5 px-3 text-gray-700 hover:text-gray-900">Contact</a>
+                    <button id="logout-button" class="py-2 px-3 bg-gray-500 text-white rounded hover:bg-gray-600 transition duration-300">Logout</button>
+                </div>
+            </div>
+        </div>
+    </nav>
 
-  <!-- NAV -->
-  <nav class="glass fixed">
-    <div class="center-max flex justify-between items-center px-6 py-4">
-      <div class="flex items-center gap-3">
-        <img src="https://i.imgur.com/5uVSHf4.png" alt="logo" class="h-10 w-10 rounded-md">
-        <div class="text-2xl font-extrabold tracking-tight">MyCNN</div>
-      </div>
-      <!-- Visible nav depends on auth state. Only one set is shown at a time. -->
-      <div id="nav-logged-out" class="hidden md:flex items-center gap-4">
-        <a href="#login-section" class="muted btn-hover">Login</a>
-        <a href="#signup-section" class="btn px-4 py-2 rounded-xl" aria-label="Create an account">Create an Account</a>
-      </div>
-      <div id="nav-logged-in" class="hidden md:flex items-center gap-4">
-        <a href="#app-section" class="muted btn-hover">Analyze</a>
-        <a href="#history-section" class="muted btn-hover">History</a>
-        <button id="logout-button" class="glass btn-hover px-3 py-2 rounded-xl">Logout</button>
-      </div>
-      <!-- Single Contact link (not duplicated) -->
-      <a href="#contact-section" class="muted btn-hover hidden md:inline-block">Contact</a>
-    </div>
-  </nav>
+    <div class="max-w-4xl mx-auto p-8">
+        <div id="message-box" class="mb-4 text-center font-semibold text-red-600"></div>
 
-  <main>
-    <!-- HERO -->
-    <section class="pt-28 pb-12">
-      <div class="center-max grid md:grid-cols-2 gap-12 items-center">
-        <div>
-          <h1 class="text-5xl font-extrabold leading-tight mb-4">AI-Powered<br><span class="text-sky-400">COVID-19</span> Detection</h1>
-          <p class="muted mb-6">Upload CT scan images and receive instant analysis backed by CNN deep-learning technology.</p>
-          <a href="#app-section" class="btn btn-hover px-8 py-4 rounded-xl font-bold">Start Analyzing</a>
+        <!-- Login -->
+        <div id="login-section" class="bg-white p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-bold mb-6 text-blue-900">Login</h2>
+            <form id="login-form">
+                <div class="mb-4"><label class="block text-sm font-bold mb-2">Email</label><input id="login-email" type="email" class="border rounded w-full py-2 px-3" required></div>
+                <div class="mb-6"><label class="block text-sm font-bold mb-2">Password</label><input id="login-password" type="password" class="border rounded w-full py-2 px-3" required></div>
+                <button class="bg-cyan-500 text-white font-bold py-2 px-4 rounded" type="submit">Sign In</button>
+            </form>
         </div>
         <div class="glass p-10 rounded-3xl card text-center">
           <p class="muted">Advanced</p>
